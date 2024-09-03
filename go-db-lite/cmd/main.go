@@ -12,6 +12,8 @@ import (
 	"github.com/chaitanyasharma/DBs/go-db-lite/internal/types"
 )
 
+var homeDir string
+
 func main() {
 	dbFileName := "default.db"
 	if len(os.Args) == 2 && !strings.HasPrefix(os.Args[1], "-") {
@@ -30,6 +32,9 @@ func main() {
 	versionFlag := flag.Bool("version", false, "show version")
 	flag.BoolVar(versionFlag, "v", false, "show version")
 
+	inMemoryFlag := flag.Bool("in-memory", false, "use in-memory database")
+	operatingDirFlag := flag.String("dir", ".", "the directory where the database files will be stored")
+
 	flag.Parse()
 
 	// if the help flag is set, print the help message
@@ -43,6 +48,19 @@ func main() {
 	if *versionFlag {
 		fmt.Println("go-db-lite version 0.1")
 		os.Exit(0)
+	}
+
+	if *inMemoryFlag {
+		fmt.Println("Using in-memory database")
+	} else {
+		homeDir, _ = os.Getwd()
+		if *operatingDirFlag != "." {
+			homeDir = *operatingDirFlag
+		}
+		fmt.Printf("Current directory: %s has been assumed as the operating directory\n", homeDir)
+		if _, err := os.Stat(homeDir + "/" + dbFileName); os.IsNotExist(err) {
+			fmt.Printf("%s file has been created and the data will persist in that database\n", dbFileName)
+		}
 	}
 
 	fmt.Println(ansi.BoldHighIntensityText + ansi.Green + "Mini SQL DB starting...\n" + ansi.Reset)
@@ -87,6 +105,14 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 		switch cmd.Command() {
 		case types.CmdCreateDatabase:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Database Command:"+ansi.Reset, cmd.CommandName())
+			dbName := strings.TrimSpace(string(inputBuffer.Buffer[len("create database"):]))
+			file, err := os.Create(homeDir + "/" + dbName + ".db")
+			if err != nil {
+				fmt.Println(ansi.BoldText+ansi.Red+"Error creating database file:"+ansi.Reset, err)
+				return
+			}
+			defer file.Close()
+			fmt.Println(ansi.RegText+ansi.Green+"Database file created successfully:"+ansi.Reset, dbName+".db")
 		case types.CmdCreateTable:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Table Command:"+ansi.Reset, cmd.CommandName())
 		case types.CmdCreateIndex:
