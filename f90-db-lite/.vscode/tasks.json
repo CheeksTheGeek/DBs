@@ -1,0 +1,77 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build mini_sql_db",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "all"
+            ],
+            "group": {
+                "kind": "build",
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build the mini SQL DB using make"
+        },
+        {
+            "label": "Clean mini_sql_db",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run mini_sql_db",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "run"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Run the compiled mini SQL DB"
+        },
+        {
+            "label": "Format Code",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "format"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Format the code using clang-format"
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "test"
+            ],
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Run the tests using Catch2"
+        },
+        {
+            "label": "Build and Run",
+            "dependsOn": [
+                "Build mini_sql_db",
+                "Run mini_sql_db"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

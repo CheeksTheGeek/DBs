@@ -1,0 +1,36 @@
+#pragma once
+
+typedef enum {
+    /* Numeric Data Types */
+    SQL_TYPE_BIT,
+    SQL_TYPE_TINYINT,
+    SQL_TYPE_BOOL,
+    SQL_TYPE_SMALLINT,
+    SQL_TYPE_MEDIUMINT,
+    SQL_TYPE_INT, // same as INTEGER
+    SQL_TYPE_BIGINT,
+    SQL_TYPE_FLOAT,
+    SQL_TYPE_DOUBLE,
+    SQL_TYPE_DECIMAL,
+    /* Date and Time Data Types */
+    SQL_TYPE_DATE,
+    SQL_TYPE_TIME,
+    SQL_TYPE_DATETIME,
+    SQL_TYPE_TIMESTAMP,
+    SQL_TYPE_YEAR,
+    /* String Data Types */
+    SQL_TYPE_CHAR,
+    SQL_TYPE_VARCHAR,
+    SQL_TYPE_BINARY,
+    SQL_TYPE_VARBINARY,
+    SQL_TYPE_TINYBLOB,
+    SQL_TYPE_TINYTEXT,
+    SQL_TYPE_TEXT,
+    SQL_TYPE_BLOB,
+    SQL_TYPE_MEDIUMTEXT,
+    SQL_TYPE_MEDIUMBLOB,
+    SQL_TYPE_LONGTEXT,
+    SQL_TYPE_LONGBLOB,
+    SQL_TYPE_ENUM,
+    SQL_TYPE_SET
+} DataType;
