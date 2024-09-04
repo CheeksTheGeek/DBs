@@ -169,7 +169,7 @@ def to_lowercase(s):
     return s.lower()
 
 
-def parse_command(command, core_map, sub_map=None):
+def parse_command(command: str, core_map: list[CommandMapping], sub_map: list[CommandMapping] = None):
     """Parse a command string and return the corresponding command type and level.
 
     Args:
@@ -416,9 +416,3 @@ def start_repl():
 if __name__ == "__main__":
     print(ANSI_BOLD_TEXT + ANSI_GREEN + "Mini SQL DB starting...\n" + ANSI_RESET)
     start_repl()
-
-for tld in tlds:
-    for chars in itertools.product(valid_chars, repeat=1):
-        domain = prefix + ''.join(chars) + tld
-        if is_domain_available(domain):
-            print(f"Available: {domain}")

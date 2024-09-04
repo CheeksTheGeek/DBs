@@ -12,7 +12,7 @@ import (
 	"github.com/chaitanyasharma/DBs/go-db-lite/internal/types"
 )
 
-var homeDir string
+var config types.Config
 
 func main() {
 	dbFileName := "default.db"
@@ -50,21 +50,20 @@ func main() {
 		os.Exit(0)
 	}
 
+	fmt.Println(ansi.BoldHighIntensityText + ansi.Green + "Mini SQL DB starting...\n" + ansi.Reset)
+	fmt.Println(ansi.RegText + ansi.Magenta + "Type 'exit' to quit" + ansi.Reset)
 	if *inMemoryFlag {
 		fmt.Println("Using in-memory database")
 	} else {
-		homeDir, _ = os.Getwd()
+		config.HomeDir, _ = os.Getwd()
 		if *operatingDirFlag != "." {
-			homeDir = *operatingDirFlag
+			config.HomeDir = *operatingDirFlag
 		}
-		fmt.Printf("Current directory: %s has been assumed as the operating directory\n", homeDir)
-		if _, err := os.Stat(homeDir + "/" + dbFileName); os.IsNotExist(err) {
+		fmt.Printf("Current directory: %s has been assumed as the operating directory\n", config.HomeDir)
+		if _, err := os.Stat(config.HomeDir + "/" + dbFileName); os.IsNotExist(err) {
 			fmt.Printf("%s file has been created and the data will persist in that database\n", dbFileName)
 		}
 	}
-
-	fmt.Println(ansi.BoldHighIntensityText + ansi.Green + "Mini SQL DB starting...\n" + ansi.Reset)
-	fmt.Println(ansi.RegText + ansi.Magenta + "Type 'exit' to quit" + ansi.Reset)
 
 	fmt.Println("dbFileName:", dbFileName)
 	reader := bufio.NewReader(os.Stdin)
@@ -106,13 +105,18 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 		case types.CmdCreateDatabase:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Database Command:"+ansi.Reset, cmd.CommandName())
 			dbName := strings.TrimSpace(string(inputBuffer.Buffer[len("create database"):]))
-			file, err := os.Create(homeDir + "/" + dbName + ".db")
-			if err != nil {
-				fmt.Println(ansi.BoldText+ansi.Red+"Error creating database file:"+ansi.Reset, err)
-				return
+			// file, err := os.Create(homeDir + "/" + dbName + ".db") instead check if the file already exists
+			if _, err := os.Stat(config.HomeDir + "/" + dbName + ".db"); os.IsNotExist(err) {
+				file, err := os.Create(config.HomeDir + "/" + dbName + ".db")
+				if err != nil {
+					fmt.Println(ansi.BoldText+ansi.Red+"Error creating database file:"+ansi.Reset, err)
+					return
+				}
+				defer file.Close()
+				fmt.Println(ansi.RegText+ansi.Green+"Database file created successfully:"+ansi.Reset, dbName+".db")
+			} else {
+				fmt.Println(ansi.BoldText+ansi.Red+"Database file already exists:"+ansi.Reset, dbName+".db")
 			}
-			defer file.Close()
-			fmt.Println(ansi.RegText+ansi.Green+"Database file created successfully:"+ansi.Reset, dbName+".db")
 		case types.CmdCreateTable:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Table Command:"+ansi.Reset, cmd.CommandName())
 		case types.CmdCreateIndex:
@@ -191,6 +195,24 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Update Command:"+ansi.Reset, cmd.CommandName())
 		case types.CmdDelete:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Delete Command:"+ansi.Reset, cmd.CommandName())
+		case types.CmdShowDatabases:
+			// show databases
+			// list all the databases in the operating directory
+			files, err := os.ReadDir(config.HomeDir)
+			if err != nil {
+				fmt.Println(ansi.BoldText+ansi.Red+"Error reading database files:"+ansi.Reset, err)
+				return
+			}
+			fmt.Println(ansi.RegText + ansi.Green + "Databases:" + ansi.Reset)
+			for _, file := range files {
+				if strings.HasSuffix(file.Name(), ".db") {
+					fmt.Println(ansi.RegText + ansi.Green + "  " + file.Name() + ansi.Reset)
+				}
+			}
+		case types.CmdUse:
+			// use <database_name>
+			dbName := strings.TrimSpace(string(inputBuffer.Buffer[len("use"):]))
+			fmt.Println(ansi.RegText+ansi.Green+"Executing Use Command:"+ansi.Reset, cmd.CommandName(), dbName)
 		case types.CmdHelp:
 			// Print out all the commands, as well the version number of the program
 			fmt.Println(ansi.HighIntensityText + ansi.Blue + "Version: 0.1" + ansi.Reset)
