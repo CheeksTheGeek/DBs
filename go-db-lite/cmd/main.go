@@ -106,7 +106,7 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Database Command:"+ansi.Reset, cmd.CommandName())
 			dbName := strings.TrimSpace(string(inputBuffer.Buffer[len("create database"):]))
 			// file, err := os.Create(homeDir + "/" + dbName + ".db") instead check if the file already exists
-			if _, err := os.Stat(config.HomeDir + "/" + dbName + ".db"); os.IsNotExist(err) {
+			if _, err := os.Stat(config.HomeDir + "/" + dbName + ".db"); os.IsNotExist(err) && dbName != "" {
 				file, err := os.Create(config.HomeDir + "/" + dbName + ".db")
 				if err != nil {
 					fmt.Println(ansi.BoldText+ansi.Red+"Error creating database file:"+ansi.Reset, err)
@@ -114,6 +114,8 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 				}
 				defer file.Close()
 				fmt.Println(ansi.RegText+ansi.Green+"Database file created successfully:"+ansi.Reset, dbName+".db")
+			} else if dbName == "" {
+				fmt.Println(ansi.BoldText + ansi.Red + "Database name cannot be empty" + ansi.Reset)
 			} else {
 				fmt.Println(ansi.BoldText+ansi.Red+"Database file already exists:"+ansi.Reset, dbName+".db")
 			}
