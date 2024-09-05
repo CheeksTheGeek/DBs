@@ -14,6 +14,8 @@ import (
 
 var config types.Config
 
+const InMemoryDBName = "MEMORY"
+
 func main() {
 	dbFileName := "default.db"
 	if len(os.Args) == 2 && !strings.HasPrefix(os.Args[1], "-") {
@@ -37,6 +39,13 @@ func main() {
 
 	flag.Parse()
 
+	// confirm that inMemoryFlag and operatingDirFlag are not both set
+	if *inMemoryFlag && *operatingDirFlag != "." {
+		fmt.Println(ansi.BoldText + ansi.Red + "Error: both in-memory and operating directory flags cannot be set" + ansi.Reset)
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
 	// if the help flag is set, print the help message
 	if *helpFlag {
 		fmt.Println("Usage: go-db-lite [flags]")
@@ -50,9 +59,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	// set config values
+	config := types.NewConfig(*operatingDirFlag, *inMemoryFlag, dbFileName)
 	fmt.Println(ansi.BoldHighIntensityText + ansi.Green + "Mini SQL DB starting...\n" + ansi.Reset)
 	fmt.Println(ansi.RegText + ansi.Magenta + "Type 'exit' to quit" + ansi.Reset)
 	if *inMemoryFlag {
+		config.InMemory = true
+		config.DBFileName = InMemoryDBName + ".db"
 		fmt.Println("Using in-memory database")
 	} else {
 		config.HomeDir, _ = os.Getwd()
@@ -60,12 +73,12 @@ func main() {
 			config.HomeDir = *operatingDirFlag
 		}
 		fmt.Printf("Current directory: %s has been assumed as the operating directory\n", config.HomeDir)
-		if _, err := os.Stat(config.HomeDir + "/" + dbFileName); os.IsNotExist(err) {
-			fmt.Printf("%s file has been created and the data will persist in that database\n", dbFileName)
+		if _, err := os.Stat(config.HomeDir + "/" + config.DBFileName); os.IsNotExist(err) {
+			os.Create(config.HomeDir + "/" + config.DBFileName)
+			fmt.Printf("%s file has been created and the data will persist in that database\n", config.DBFileName)
 		}
 	}
-
-	fmt.Println("dbFileName:", dbFileName)
+	fmt.Println("dbFileName:", config.DBFileName)
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
