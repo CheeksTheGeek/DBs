@@ -14,19 +14,21 @@ type CommandLevel int
 
 // Core command enum
 const (
-	CmdExit    CoreCommandType = iota // single level
-	CmdInsert                         // single level
-	CmdSelect                         // single level
-	CmdUpdate                         // single level
-	CmdDelete                         // single level
-	CmdCreate                         // multi level
-	CmdDrop                           // multi level
-	CmdAlter                          // multi level
-	CmdGrant                          // multi level
-	CmdRevoke                         // multi level
-	CmdLock                           // multi level
-	CmdHelp                           // single level
-	CmdUnknown                        // single level
+	CmdExit          CoreCommandType = iota // single level
+	CmdInsert                               // single level
+	CmdSelect                               // single level
+	CmdUpdate                               // single level
+	CmdDelete                               // single level
+	CmdCreate                               // multi level
+	CmdDrop                                 // multi level
+	CmdAlter                                // multi level
+	CmdGrant                                // multi level
+	CmdRevoke                               // multi level
+	CmdLock                                 // multi level
+	CmdShowDatabases                        // single level
+	CmdUse                                  // single level
+	CmdHelp                                 // single level
+	CmdUnknown                              // single level
 )
 
 // Create-specific command enum
@@ -153,6 +155,9 @@ func (c CoreCommand) CommandName() string {
 		"grant",
 		"revoke",
 		"lock",
+		"show databases",
+		"use",
+		"help",
 		"unknown"}[c.command]
 }
 
@@ -411,6 +416,8 @@ var CoreCommandMap = []CommandMapping{
 	{"grant", CoreCommand{CmdGrant}},
 	{"revoke", CoreCommand{CmdRevoke}},
 	{"lock", CoreCommand{CmdLock}},
+	{"show databases", CoreCommand{CmdShowDatabases}},
+	{"use", CoreCommand{CmdUse}},
 	{"help", CoreCommand{CmdHelp}},
 	{"unknown", CoreCommand{CmdUnknown}},
 }

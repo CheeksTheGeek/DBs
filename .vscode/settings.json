@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.tex": "latex",
+        "stddef.h": "c"
+    }
+}

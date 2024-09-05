@@ -1,4 +1,3 @@
-// internal/parser/parser.go
 package parser
 
 import (
@@ -30,6 +29,10 @@ func ParseCommand(inputBuffer *types.InputBuffer) (types.CommandType, error) {
 			return types.UnknownCommand{}, fmt.Errorf("Unknown subcommand \"%s\" for command \"%s\"", tokens[1], coreCommand.CommandName())
 		}
 		return coreCommand, nil
+	} else if len(tokens) > 1 {
+		if coreCommand = findCommand(tokens[0]+" "+tokens[1], types.CoreCommandMap); coreCommand != nil { // for commands like show databases
+			return coreCommand, nil
+		}
 	}
 
 	return types.UnknownCommand{}, fmt.Errorf("Unknown command \"%s\"", tokens[0])
