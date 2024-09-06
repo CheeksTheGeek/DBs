@@ -134,6 +134,13 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 			}
 		case types.CmdCreateTable:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Table Command:"+ansi.Reset, cmd.CommandName())
+			tableName, columnsDef := parseTableCommand(inputBuffer.Buffer)
+			columns := parseColumns(columnsDef)
+			if columns != nil {
+				createTable(tableName, columns)
+			} else {
+				fmt.Println(ansi.BoldText + ansi.Red + "Error parsing columns for table" + ansi.Reset)
+			}
 		case types.CmdCreateIndex:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Create Index Command:"+ansi.Reset, cmd.CommandName())
 		case types.CmdCreateUniqueIndex:
@@ -239,6 +246,78 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 		fmt.Println(ansi.RegText + ansi.Red + "Unknown Command" + ansi.Reset)
 	default:
 		fmt.Println(ansi.RegText + ansi.Red + "Unrecognized Command" + ansi.Reset)
+	}
+}
+
+// parseTableCommand parses the table name and columns definition from the input buffer
+func parseTableCommand(buffer []byte) (string, string) {
+	command := string(buffer)
+	parts := strings.SplitN(command, "(", 2)
+	if len(parts) < 2 {
+		return "", ""
+	}
+	tableName := strings.TrimSpace(parts[0][len("create table"):])
+	columnsDef := strings.TrimSpace(parts[1])
+	return tableName, columnsDef
+}
+
+// parseColumns parses the columns definition and returns a slice of Column
+func parseColumns(columnsDef string) []types.Column {
+	columns := []types.Column{}
+	columnDefs := strings.Split(columnsDef, ",")
+	for _, columnDef := range columnDefs {
+		parts := strings.Fields(strings.TrimSpace(columnDef))
+		if len(parts) < 2 {
+			return nil
+		}
+		columnName := parts[0]
+		dataType := parseDataType(parts[1])
+		nullable := true
+		if len(parts) > 2 && strings.ToLower(parts[2]) == "not" && strings.ToLower(parts[3]) == "null" {
+			nullable = false
+		}
+		columns = append(columns, types.Column{Name: columnName, DataType: dataType, Nullable: nullable})
+	}
+	return columns
+}
+
+// parseDataType parses the data type string and returns the corresponding DataType
+func parseDataType(dataTypeStr string) types.DataType {
+	switch strings.ToLower(dataTypeStr) {
+	case "int":
+		return types.SQL_TYPE_INT
+	case "varchar":
+		return types.SQL_TYPE_VARCHAR
+	case "bool":
+		return types.SQL_TYPE_BOOL
+	case "float":
+		return types.SQL_TYPE_FLOAT
+	default:
+		return types.SQL_TYPE_UNKNOWN
+	}
+}
+
+// createTable creates a new table and adds it to the database
+func createTable(tableName string, columns []types.Column) {
+	table := types.Table{Name: tableName, Columns: columns}
+	// Add the table to the database (in-memory or file-based)
+	if config.InMemory {
+		// In-memory database logic
+		fmt.Println(ansi.RegText+ansi.Green+"Table created in-memory:"+ansi.Reset, tableName)
+	} else {
+		// File-based database logic
+		dbFileName := config.HomeDir + "/" + config.DBFileName
+		db := types.NewDatabase()
+		if err := db.ReadFromFile(dbFileName); err != nil {
+			fmt.Println(ansi.BoldText+ansi.Red+"Error reading database file:"+ansi.Reset, err)
+			return
+		}
+		db.AddTable(table)
+		if err := db.WriteToFile(dbFileName); err != nil {
+			fmt.Println(ansi.BoldText+ansi.Red+"Error writing to database file:"+ansi.Reset, err)
+			return
+		}
+		fmt.Println(ansi.RegText+ansi.Green+"Table created and added to database file:"+ansi.Reset, tableName)
 	}
 }
 

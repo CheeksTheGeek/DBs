@@ -39,3 +39,9 @@ func (t *Table) GetRow(index int) Row {
 func (t *Table) GetAllRows() []Row {
 	return t.Rows
 }
+
+func (t *Table) CreateTable(tableName string, columns []Column) {
+	t.Name = tableName
+	t.Columns = columns
+	t.Rows = []Row{}
+}
