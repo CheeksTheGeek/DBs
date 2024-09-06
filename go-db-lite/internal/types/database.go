@@ -1,9 +1,10 @@
 package types
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -41,29 +42,23 @@ func (db *Database) WriteToFile(filename string) error {
 	}
 	defer file.Close()
 
-	buffer := new(bytes.Buffer)
-
 	// Write file header
-	if err := binary.Write(buffer, binary.LittleEndian, db.FileHeader); err != nil {
+	if err := binary.Write(file, binary.LittleEndian, db.FileHeader); err != nil {
 		return fmt.Errorf("error writing file header: %v", err)
 	}
 
 	// Write metadata
 	for key, value := range db.Metadata {
-		if _, err := buffer.WriteString(fmt.Sprintf("%s:%s\n", key, value)); err != nil {
+		if _, err := file.WriteString(fmt.Sprintf("%s:%s\n", key, value)); err != nil {
 			return fmt.Errorf("error writing metadata: %v", err)
 		}
 	}
 
 	// Write tables
 	for _, table := range db.Tables {
-		if err := binary.Write(buffer, binary.LittleEndian, table); err != nil {
+		if err := table.WriteTo(file); err != nil {
 			return fmt.Errorf("error writing table: %v", err)
 		}
-	}
-
-	if _, err := file.Write(buffer.Bytes()); err != nil {
-		return fmt.Errorf("error writing to file: %v", err)
 	}
 
 	return nil
@@ -76,21 +71,22 @@ func (db *Database) ReadFromFile(filename string) error {
 	}
 	defer file.Close()
 
-	buffer := new(bytes.Buffer)
-	if _, err := buffer.ReadFrom(file); err != nil {
-		return fmt.Errorf("error reading from file: %v", err)
-	}
-
 	// Read file header
-	if err := binary.Read(buffer, binary.LittleEndian, &db.FileHeader); err != nil {
-		return fmt.Errorf("error reading file header: %v", err)
+	if err := binary.Read(file, binary.LittleEndian, &db.FileHeader); err != nil {
+		if err == io.EOF {
+			// File is empty, initialize with default header
+			db.FileHeader = FileHeader{Version: 1, MagicNumber: 0x4744424C} // 'GDBL' in hex
+		} else {
+			return fmt.Errorf("error reading file header: %v", err)
+		}
 	}
 
 	// Read metadata
 	db.Metadata = make(map[string]string)
-	for {
-		line, err := buffer.ReadString('\n')
-		if err != nil {
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
 			break
 		}
 		parts := strings.SplitN(line, ":", 2)
@@ -101,9 +97,12 @@ func (db *Database) ReadFromFile(filename string) error {
 
 	// Read tables
 	db.Tables = []Table{}
-	for buffer.Len() > 0 {
+	for {
 		var table Table
-		if err := binary.Read(buffer, binary.LittleEndian, &table); err != nil {
+		if err := table.ReadFrom(file); err != nil {
+			if err == io.EOF {
+				break
+			}
 			return fmt.Errorf("error reading table: %v", err)
 		}
 		db.Tables = append(db.Tables, table)

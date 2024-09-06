@@ -1,6 +1,6 @@
 package types
 
-type DataType int
+type DataType uint32
 
 const (
 	SQL_TYPE_BIT DataType = iota
@@ -32,4 +32,5 @@ const (
 	SQL_TYPE_LONGBLOB
 	SQL_TYPE_ENUM
 	SQL_TYPE_SET
+	SQL_TYPE_UNKNOWN
 )

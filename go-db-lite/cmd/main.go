@@ -12,7 +12,7 @@ import (
 	"github.com/chaitanyasharma/DBs/go-db-lite/internal/types"
 )
 
-var config types.Config
+var config *types.Config
 
 const InMemoryDBName = "MEMORY"
 
@@ -60,7 +60,7 @@ func main() {
 	}
 
 	// set config values
-	config := types.NewConfig(*operatingDirFlag, *inMemoryFlag, dbFileName)
+	config = types.NewConfig(*operatingDirFlag, *inMemoryFlag, dbFileName)
 	fmt.Println(ansi.BoldHighIntensityText + ansi.Green + "Mini SQL DB starting...\n" + ansi.Reset)
 	fmt.Println(ansi.RegText + ansi.Magenta + "Type 'exit' to quit" + ansi.Reset)
 	if *inMemoryFlag {
@@ -73,12 +73,13 @@ func main() {
 			config.HomeDir = *operatingDirFlag
 		}
 		fmt.Printf("Current directory: %s has been assumed as the operating directory\n", config.HomeDir)
-		if _, err := os.Stat(config.HomeDir + "/" + config.DBFileName); os.IsNotExist(err) {
-			os.Create(config.HomeDir + "/" + config.DBFileName)
+		if _, err := os.Stat(config.GetDBFilePath()); os.IsNotExist(err) {
+			os.Create(config.GetDBFilePath())
 			fmt.Printf("%s file has been created and the data will persist in that database\n", config.DBFileName)
 		}
 	}
 	fmt.Println("dbFileName:", config.DBFileName)
+	fmt.Println("HomeDir:", config.HomeDir)
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -211,6 +212,18 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 			os.Exit(0)
 		case types.CmdSelect:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Select Command:"+ansi.Reset, cmd.CommandName())
+			query := strings.TrimSpace(string(inputBuffer.Buffer))
+			if strings.HasPrefix(strings.ToLower(query), "select * from ") {
+				tableName := strings.TrimSpace(query[len("select * from "):])
+				if tableName == "" {
+					fmt.Println(ansi.BoldText + ansi.Red + "Table name cannot be empty" + ansi.Reset)
+				} else {
+					fmt.Printf(ansi.RegText+ansi.Green+"Selecting all columns from table: %s\n"+ansi.Reset, tableName)
+					//TODO: implement the select command
+				}
+			} else {
+				fmt.Println(ansi.BoldText + ansi.Red + "Invalid select command. Only 'SELECT * FROM <table_name>' is supported." + ansi.Reset)
+			}
 		case types.CmdInsert:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Insert Command:"+ansi.Reset, cmd.CommandName())
 		case types.CmdUpdate:
@@ -218,27 +231,26 @@ func executeCommand(command types.CommandType, inputBuffer *types.InputBuffer) {
 		case types.CmdDelete:
 			fmt.Println(ansi.RegText+ansi.Green+"Executing Delete Command:"+ansi.Reset, cmd.CommandName())
 		case types.CmdShowDatabases:
-			// show databases
 			// list all the databases in the operating directory
-			files, err := os.ReadDir(config.HomeDir)
-			if err != nil {
-				fmt.Println(ansi.BoldText+ansi.Red+"Error reading database files:"+ansi.Reset, err)
+			printDatabases()
+		case types.CmdUse:
+			// see if it matches the format "use <database_name>"
+			dbFileName := strings.TrimSpace(string(inputBuffer.Buffer[len("use"):])) + ".db"
+			if len(dbFileName) == 0 {
+				fmt.Println(ansi.BoldText + ansi.Red + "Database name cannot be empty" + ansi.Reset)
 				return
 			}
-			fmt.Println(ansi.RegText + ansi.Green + "Databases:" + ansi.Reset)
-			for _, file := range files {
-				if strings.HasSuffix(file.Name(), ".db") {
-					fmt.Println(ansi.RegText + ansi.Green + "  " + file.Name() + ansi.Reset)
-				}
+			dbFileName = config.HomeDir + "/" + dbFileName
+			if _, err := os.Stat(dbFileName); os.IsNotExist(err) {
+				fmt.Println(ansi.BoldText+ansi.Red+"Database file does not exist:"+ansi.Reset, dbFileName)
+				fmt.Println(ansi.RegText + ansi.Green + "Available databases:" + ansi.Reset)
+				printDatabases()
+				return
 			}
-		case types.CmdUse:
-			// use <database_name>
-			dbName := strings.TrimSpace(string(inputBuffer.Buffer[len("use"):]))
-			fmt.Println(ansi.RegText+ansi.Green+"Executing Use Command:"+ansi.Reset, cmd.CommandName(), dbName)
+			config.DBFileName = dbFileName
+			fmt.Println(ansi.RegText+ansi.Green+"Using database:"+ansi.Reset, dbFileName)
 		case types.CmdHelp:
 			printHelp()
-		case types.CmdUnknownCommand:
-			fmt.Println(ansi.BoldText+ansi.Red+"Executing Unknown Command:"+ansi.Reset, cmd.CommandName())
 		default:
 			fmt.Println(ansi.BoldText+ansi.Red+"Unrecognized Core Command:"+ansi.Reset, cmd.CommandName())
 		}
@@ -276,7 +288,9 @@ func parseColumns(columnsDef string) []types.Column {
 		if len(parts) > 2 && strings.ToLower(parts[2]) == "not" && strings.ToLower(parts[3]) == "null" {
 			nullable = false
 		}
-		columns = append(columns, types.Column{Name: columnName, DataType: dataType, Nullable: nullable})
+		var nameBytes [64]byte
+		copy(nameBytes[:], columnName)
+		columns = append(columns, types.Column{Name: nameBytes, DataType: dataType, Nullable: nullable})
 	}
 	return columns
 }
@@ -299,14 +313,16 @@ func parseDataType(dataTypeStr string) types.DataType {
 
 // createTable creates a new table and adds it to the database
 func createTable(tableName string, columns []types.Column) {
-	table := types.Table{Name: tableName, Columns: columns}
+	var nameBytes [64]byte
+	copy(nameBytes[:], tableName)
+	table := types.Table{Name: nameBytes, Columns: columns}
 	// Add the table to the database (in-memory or file-based)
 	if config.InMemory {
-		// In-memory database logic
 		fmt.Println(ansi.RegText+ansi.Green+"Table created in-memory:"+ansi.Reset, tableName)
 	} else {
 		// File-based database logic
-		dbFileName := config.HomeDir + "/" + config.DBFileName
+		dbFileName := config.GetDBFilePath()
+		fmt.Println("dbFileName:", dbFileName)
 		db := types.NewDatabase()
 		if err := db.ReadFromFile(dbFileName); err != nil {
 			fmt.Println(ansi.BoldText+ansi.Red+"Error reading database file:"+ansi.Reset, err)
@@ -318,6 +334,21 @@ func createTable(tableName string, columns []types.Column) {
 			return
 		}
 		fmt.Println(ansi.RegText+ansi.Green+"Table created and added to database file:"+ansi.Reset, tableName)
+	}
+}
+
+// printDatabases prints out all the databases in the operating directory
+func printDatabases() {
+	files, err := os.ReadDir(config.HomeDir)
+	if err != nil {
+		fmt.Println(ansi.BoldText+ansi.Red+"Error reading database files:"+ansi.Reset, err)
+		return
+	}
+	fmt.Println(ansi.RegText + ansi.Green + "Databases:" + ansi.Reset)
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".db") {
+			fmt.Println(ansi.RegText + ansi.Green + "  " + file.Name() + ansi.Reset)
+		}
 	}
 }
 
