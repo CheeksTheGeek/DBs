@@ -24,8 +24,12 @@ type InputBuffer struct {
 
 // create a type for config
 type Config struct {
-	HomeDir  string
-	InMemory bool
-	DbName   string
-	DbFile   string
+	HomeDir    string
+	InMemory   bool
+	DBFileName string
+}
+
+// constructor
+func NewConfig(homeDir string, inMemory bool, dbFileName string) *Config {
+	return &Config{HomeDir: homeDir, InMemory: inMemory, DBFileName: dbFileName}
 }
