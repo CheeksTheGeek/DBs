@@ -33,3 +33,7 @@ type Config struct {
 func NewConfig(homeDir string, inMemory bool, dbFileName string) *Config {
 	return &Config{HomeDir: homeDir, InMemory: inMemory, DBFileName: dbFileName}
 }
+
+func (c *Config) GetDBFilePath() string {
+	return c.HomeDir + "/" + c.DBFileName
+}
