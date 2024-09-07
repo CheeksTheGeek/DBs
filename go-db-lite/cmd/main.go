@@ -21,6 +21,7 @@ var config *types.Config
 const InMemoryDBName = "MEMORY"
 const DefaultHomeDirName = "data"
 const HistoryFileName = ".history"
+const cursorOffset = 6
 
 // create select insert delete update alter
 
@@ -208,7 +209,8 @@ func main() {
 					cursorPos--
 					fmt.Print("\r\033[K") // Clear the current line
 					fmt.Print(ansi.RegText + ansi.Cyan + "db" + ansi.Reset + ansi.BoldHighIntensityText + ansi.Yellow + " > " + ansi.Reset + input)
-					fmt.Print("\033[" + fmt.Sprint(cursorPos+4) + "G") // Move cursor to the correct position
+					fmt.Print("\033[" + fmt.Sprint(cursorPos+cursorOffset) + "G") // Move cursor to the correct position
+					// what should I name the global variable for the cursor offset? ans: cursorOffset
 				}
 			} else if char == 3 || char == 26 { // ctrl+c or ctrl+z
 				term.Restore(int(os.Stdin.Fd()), oldState)
@@ -218,7 +220,7 @@ func main() {
 				cursorPos++
 				fmt.Print("\r\033[K") // Clear the current line
 				fmt.Print(ansi.RegText + ansi.Cyan + "db" + ansi.Reset + ansi.BoldHighIntensityText + ansi.Yellow + " > " + ansi.Reset + input)
-				fmt.Print("\033[" + fmt.Sprint(cursorPos+4) + "G") // Move cursor to the correct position
+				fmt.Print("\033[" + fmt.Sprint(cursorPos+cursorOffset) + "G") // Move cursor to the correct position (added 1 to cursorPos)
 			}
 		}
 
@@ -262,7 +264,8 @@ func Exit(exitCode int) {
 	if exitCode == 0 {
 		fmt.Println(ansi.BoldHighIntensityText + ansi.Green + "Until Next Time 👋" + ansi.Reset)
 	} else {
-		fmt.Println(ansi.BoldHighIntensityText + ansi.Red + "Exiting disgracefully because you pressed ctrl+c or ctrl+z!?>!? 👹" + ansi.Reset)
+		// \n here is compensating for the extra line that is atuomatically printed in the case of graceful exit
+		fmt.Println("\n" + ansi.BoldHighIntensityText + ansi.Red + "Exiting disgracefully because you pressed ctrl+c or ctrl+z. Et tu, Brute? 👹" + ansi.Reset)
 	}
 	fmt.Print("\r\n")
 	os.Exit(exitCode)
