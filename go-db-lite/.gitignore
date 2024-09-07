@@ -2,4 +2,4 @@ dump/*
 bin/*
 *.db
 .DS_Store
-*/.history
+.history
