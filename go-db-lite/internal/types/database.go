@@ -46,7 +46,7 @@ func (db *Database) WriteToFile(filename string) error {
 
 	// Write each table
 	for _, table := range db.Tables {
-		if err := table.WriteTo(file); err != nil {
+		if _, err := table.WriteTo(file); err != nil {
 			return fmt.Errorf("error writing table: %v", err)
 		}
 	}
@@ -70,7 +70,7 @@ func (db *Database) ReadFromFile(filename string) error {
 	// Read each table
 	db.Tables = make([]Table, numTables)
 	for i := range db.Tables {
-		if err := db.Tables[i].ReadFrom(file); err != nil {
+		if _, err := db.Tables[i].ReadFrom(file); err != nil {
 			return fmt.Errorf("error reading table: %v", err)
 		}
 	}

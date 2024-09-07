@@ -21,42 +21,55 @@ type Column struct {
 	Size         int
 }
 
-func (c *Column) WriteTo(w io.Writer) error {
-	if _, err := w.Write(c.Name[:]); err != nil {
-		return err
+func (c *Column) WriteTo(w io.Writer) (int64, error) {
+	var written int64
+	n, err := w.Write(c.Name[:])
+	written += int64(n)
+	if err != nil {
+		return written, err
 	}
 	if err := binary.Write(w, binary.LittleEndian, c.DataType); err != nil {
-		return err
+		return written, err
 	}
-	return binary.Write(w, binary.LittleEndian, c.Nullable)
+	return written, binary.Write(w, binary.LittleEndian, c.Nullable)
 }
 
-func (c *Column) ReadFrom(r io.Reader) error {
-	if _, err := io.ReadFull(r, c.Name[:]); err != nil {
-		return err
+func (c *Column) ReadFrom(r io.Reader) (int64, error) {
+	var read int64
+	if n, err := io.ReadFull(r, c.Name[:]); err != nil {
+		return read, err
+	} else {
+		read += int64(n)
 	}
 	if err := binary.Read(r, binary.LittleEndian, &c.DataType); err != nil {
-		return err
+		return read, err
 	}
-	return binary.Read(r, binary.LittleEndian, &c.Nullable)
+	read += int64(binary.Size(c.DataType))
+	return read, binary.Read(r, binary.LittleEndian, &c.Nullable)
 }
 
 type Row struct {
 	Values []byte // Store serialized values as a byte slice
 }
 
-func (r *Row) WriteTo(w io.Writer) error {
-	return binary.Write(w, binary.LittleEndian, r.Values)
+func (r *Row) WriteTo(w io.Writer) (int64, error) {
+	var written int64
+	n, err := w.Write(r.Values)
+	written += int64(n)
+	if err != nil {
+		return written, err
+	}
+	return written, binary.Write(w, binary.LittleEndian, r.Values)
 }
 
-func (r *Row) ReadFrom(reader io.Reader) error {
+func (r *Row) ReadFrom(reader io.Reader) (int64, error) {
 	var length uint32
 	if err := binary.Read(reader, binary.LittleEndian, &length); err != nil {
-		return err
+		return 0, err
 	}
 	r.Values = make([]byte, length)
 	_, err := io.ReadFull(reader, r.Values)
-	return err
+	return 0, err
 }
 
 type Table struct {
@@ -110,74 +123,85 @@ func (t *Table) CreateTable(tableName string, columns []Column) {
 	t.Rows = []Row{}
 }
 
-func (t *Table) WriteTo(w io.Writer) error {
+func (t *Table) WriteTo(w io.Writer) (int64, error) {
+	var written int64
 	// Write table name
+	if n, err := w.Write(t.Name[:]); err != nil {
+		return written, err
+	} else {
+		written += int64(n)
+	}
 	if _, err := w.Write(t.Name[:]); err != nil {
-		return err
+		return written, err
 	}
 
 	// Write number of columns
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(t.Columns))); err != nil {
-		return err
+		return written, err
 	}
 
 	// Write columns
 	for _, col := range t.Columns {
-		if err := col.WriteTo(w); err != nil {
-			return err
+		if _, err := col.WriteTo(w); err != nil {
+			return written, err
 		}
 	}
 
 	// Write number of rows
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(t.Rows))); err != nil {
-		return err
+		return written, err
 	}
 
 	// Write rows
 	for _, row := range t.Rows {
-		if err := row.WriteTo(w); err != nil {
-			return err
+		if _, err := row.WriteTo(w); err != nil {
+			return written, err
 		}
 	}
 
-	return nil
+	return written, nil
 }
 
-func (t *Table) ReadFrom(r io.Reader) error {
+func (t *Table) ReadFrom(r io.Reader) (int64, error) {
+	var read int64
 	// Read table name
-	if _, err := io.ReadFull(r, t.Name[:]); err != nil {
-		return err
+	if n, err := io.ReadFull(r, t.Name[:]); err != nil {
+		return read, err
+	} else {
+		read += int64(n)
 	}
 
 	// Read number of columns
 	var colCount uint32
 	if err := binary.Read(r, binary.LittleEndian, &colCount); err != nil {
-		return err
+		return read, err
 	}
+	read += int64(binary.Size(colCount))
 
 	// Read columns
 	t.Columns = make([]Column, colCount)
 	for i := range t.Columns {
-		if err := t.Columns[i].ReadFrom(r); err != nil {
-			return err
+		if _, err := t.Columns[i].ReadFrom(r); err != nil {
+			return read, err
 		}
 	}
 
 	// Read number of rows
 	var rowCount uint32
 	if err := binary.Read(r, binary.LittleEndian, &rowCount); err != nil {
-		return err
+		return read, err
 	}
+	read += int64(binary.Size(rowCount))
 
 	// Read rows
 	t.Rows = make([]Row, rowCount)
 	for i := range t.Rows {
-		if err := t.Rows[i].ReadFrom(r); err != nil {
-			return err
+		if _, err := t.Rows[i].ReadFrom(r); err != nil {
+			return read, err
 		}
 	}
 
-	return nil
+	return read, nil
 }
 
 func serializeValues(values []interface{}, columns []Column) ([]byte, error) {
