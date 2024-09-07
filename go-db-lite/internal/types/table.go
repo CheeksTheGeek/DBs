@@ -1,14 +1,24 @@
 package types
 
 import (
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
+	"math"
+	"os"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/chaitanyasharma/DBs/go-db-lite/internal/ansi"
 )
 
 type Column struct {
-	Name     [64]byte // Fixed-size field for name
-	DataType DataType
-	Nullable bool
+	Name         [64]byte // Fixed-size field for name
+	DataType     DataType
+	Nullable     bool
+	IsPrimaryKey bool
+	Size         int
 }
 
 func (c *Column) WriteTo(w io.Writer) error {
@@ -50,9 +60,12 @@ func (r *Row) ReadFrom(reader io.Reader) error {
 }
 
 type Table struct {
-	Name    [64]byte // Fixed-size field for name
-	Columns []Column
-	Rows    []Row
+	Name        [64]byte // Fixed-size field for name
+	Columns     []Column
+	Rows        []Row
+	ColumnCount int
+	RowCount    int
+	Metadata    map[string]string
 }
 
 func (t *Table) AddColumn(name string, dataType DataType, nullable bool) {
@@ -61,17 +74,26 @@ func (t *Table) AddColumn(name string, dataType DataType, nullable bool) {
 	t.Columns = append(t.Columns, Column{Name: colName, DataType: dataType, Nullable: nullable})
 }
 
-func (t *Table) AddRow(values []interface{}) {
-	serializedValues := serializeValues(values)
+func (t *Table) AddRow(values []interface{}) error {
+	if len(values) != len(t.Columns) {
+		return fmt.Errorf("number of values (%d) does not match number of columns (%d)", len(values), len(t.Columns))
+	}
+
+	serializedValues, err := serializeValues(values, t.Columns)
+	if err != nil {
+		return fmt.Errorf("error serializing values: %v", err)
+	}
+
 	t.Rows = append(t.Rows, Row{Values: serializedValues})
+	return nil
 }
 
 func (t *Table) GetColumnNames() []string {
-	var columnNames []string
-	for _, column := range t.Columns {
-		columnNames = append(columnNames, string(column.Name[:]))
+	names := make([]string, len(t.Columns))
+	for i, col := range t.Columns {
+		names[i] = strings.TrimRight(string(col.Name[:]), "\x00")
 	}
-	return columnNames
+	return names
 }
 
 func (t *Table) GetRow(index int) Row {
@@ -158,8 +180,171 @@ func (t *Table) ReadFrom(r io.Reader) error {
 	return nil
 }
 
-func serializeValues(values []interface{}) []byte {
-	// Implement serialization logic here
-	// This is a placeholder and needs to be implemented based on your specific requirements
-	return []byte{}
+func serializeValues(values []interface{}, columns []Column) ([]byte, error) {
+	var buf bytes.Buffer
+	for i, value := range values {
+		dataTypeStr := columns[i].DataType.GetDataTypeString()
+		buf.WriteString(dataTypeStr)
+		buf.WriteByte(0) // Null terminator for the string
+
+		if value == nil {
+			buf.WriteByte(0xFF) // Indicator for null value
+			continue
+		}
+
+		switch v := value.(type) {
+		case int32:
+			binary.Write(&buf, binary.LittleEndian, v)
+		case string:
+			binary.Write(&buf, binary.LittleEndian, uint16(len(v)))
+			buf.WriteString(v)
+		case bool:
+			if v {
+				buf.WriteByte(1)
+			} else {
+				buf.WriteByte(0)
+			}
+		case float32:
+			binary.Write(&buf, binary.LittleEndian, v)
+		default:
+			return nil, fmt.Errorf("unsupported type: %T", v)
+		}
+	}
+	return buf.Bytes(), nil
+}
+
+func deserializeValues(serialized []byte, columns []Column) ([]interface{}, error) {
+	var values []interface{}
+	offset := 0
+	for _, col := range columns {
+		if offset >= len(serialized) {
+			return nil, fmt.Errorf("unexpected end of data for column %s", strings.TrimRight(string(col.Name[:]), "\x00"))
+		}
+
+		// Read data type string
+		end := bytes.IndexByte(serialized[offset:], 0)
+		if end == -1 {
+			return nil, fmt.Errorf("malformed data: no null terminator for data type string")
+		}
+		dataTypeStr := string(serialized[offset : offset+end])
+		offset += end + 1 // +1 for null terminator
+
+		dataType := GetDataTypeFromString(dataTypeStr)
+		if dataType == SQL_TYPE_UNKNOWN {
+			return nil, fmt.Errorf("unknown data type: %s", dataTypeStr)
+		}
+
+		// Check for null value
+		if serialized[offset] == 0xFF {
+			values = append(values, nil)
+			offset++
+			continue
+		}
+
+		switch dataType {
+		case SQL_TYPE_INT:
+			value := int32(binary.LittleEndian.Uint32(serialized[offset:]))
+			values = append(values, value)
+			offset += 4
+		case SQL_TYPE_VARCHAR:
+			length := int(binary.LittleEndian.Uint16(serialized[offset:]))
+			offset += 2
+			value := string(serialized[offset : offset+length])
+			values = append(values, value)
+			offset += length
+		case SQL_TYPE_BOOL:
+			value := serialized[offset] != 0
+			values = append(values, value)
+			offset++
+		case SQL_TYPE_FLOAT:
+			value := math.Float32frombits(binary.LittleEndian.Uint32(serialized[offset:]))
+			values = append(values, value)
+			offset += 4
+		default:
+			return nil, fmt.Errorf("unsupported data type: %s", dataTypeStr)
+		}
+	}
+	return values, nil
+}
+
+// PrintTableMetadata prints the table metadata in a beautiful format
+func (t *Table) PrintTableMetadata() {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "Column Name\tType\tSize\tPrimary Key")
+	fmt.Fprintln(w, "------------\t----\t----\t-----------")
+
+	for _, col := range t.Columns {
+		primaryKey := "No"
+		if col.IsPrimaryKey {
+			primaryKey = "Yes"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n",
+			strings.TrimRight(string(col.Name[:]), "\x00"),
+			col.DataType.GetDataTypeString(),
+			col.Size,
+			primaryKey)
+	}
+	w.Flush()
+}
+
+// PrintTable prints the table's contents (actual table, i.e. the column names, and then rows below them as opposed to the metadata)
+func (t *Table) PrintTable() {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.AlignRight|tabwriter.Debug)
+
+	// Determine column widths
+	columnWidths := make([]int, len(t.Columns))
+	for i, col := range t.Columns {
+		columnWidths[i] = len(strings.TrimRight(string(col.Name[:]), "\x00"))
+	}
+	for _, row := range t.Rows {
+		values, err := deserializeValues(row.Values, t.Columns)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		for i, value := range values {
+			width := len(fmt.Sprintf("%v", value))
+			if width > columnWidths[i] {
+				columnWidths[i] = width
+			}
+		}
+	}
+
+	// Print column names
+	for i, col := range t.Columns {
+		fmt.Fprintf(w, "%s%s%s\t", ansi.BoldText, ansi.Cyan, padRight(strings.TrimRight(string(col.Name[:]), "\x00"), columnWidths[i]))
+	}
+	fmt.Fprintln(w, ansi.Reset)
+
+	// Print separator
+	for i, width := range columnWidths {
+		fmt.Fprint(w, strings.Repeat("-", width))
+		if i < len(columnWidths)-1 {
+			fmt.Fprint(w, "+")
+		}
+	}
+	fmt.Fprintln(w)
+
+	// Print rows
+	for _, row := range t.Rows {
+		values, err := deserializeValues(row.Values, t.Columns)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		for i, value := range values {
+			fmt.Fprintf(w, "%s%s\t", ansi.Green, padRight(fmt.Sprintf("%v", value), columnWidths[i]))
+		}
+		fmt.Fprintln(w, ansi.Reset)
+	}
+
+	w.Flush()
+}
+
+// padRight pads the string with spaces to the specified width
+func padRight(s string, width int) string {
+	if len(s) >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-len(s))
 }
