@@ -1,8 +1,9 @@
 # Project settings
 BINARY_NAME = go-db-lite
 BUILD_DIR = bin
-CMD_MAIN = cmd/main.go
+CMD_MAIN = cmd/*
 SRC_FILES = $(shell find internal -type f -name '*.go') $(CMD_MAIN)
+RUNTIME_DATA_DIR = data
 
 # Go settings
 GO_CMD = go
@@ -37,7 +38,7 @@ clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf $(BUILD_DIR)
 	$(GO_CLEAN)
-
+	rm -rf $(RUNTIME_DATA_DIR)
 # Format the Go code
 .PHONY: format
 format:
