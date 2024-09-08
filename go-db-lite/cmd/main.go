@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
-	"encoding/binary"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -17,6 +15,8 @@ import (
 )
 
 var config *types.Config
+
+const DebugPrint = false
 
 const InMemoryDBName = "MEMORY"
 const DefaultHomeDirName = "data"
@@ -476,7 +476,7 @@ func createTable(tableName string, columns []types.Column) {
 
 	// File-based database logic
 	dbFileName := config.GetDBFilePath()
-	fmt.Println("dbFileName:", dbFileName)
+	debugPrint("dbFileName:", dbFileName)
 	db := types.NewDatabase()
 	if err := db.ReadFromFile(dbFileName); err != nil {
 		fmt.Println(ansi.BoldText+ansi.Red+"Error reading database file during create table:"+ansi.Reset, err)
@@ -521,48 +521,14 @@ func printDatabases(homeDir string, currentDB string) {
 	}
 }
 
-func notImplemented(prefix string, commandName string) {
-	commandName = prefix + " " + commandName
-	fmt.Println(ansi.BoldText + ansi.Yellow + "Executing the " + commandName + " functionality ..." + ansi.Reset)
-	fmt.Println(ansi.BoldText + ansi.Red + "Not Implemented Yet!" + ansi.Reset)
-	fmt.Println(ansi.BoldText + ansi.Red + "Come back another day or contribute to the project at " + ansi.RegText + ansi.Cyan + "https://github.com/chaitanyasharma/DBs" + ansi.Reset + ansi.BoldText + ansi.Red + "!" + ansi.Reset)
-	fmt.Println(ansi.BoldText + ansi.Red + "Thank you!" + ansi.Reset)
-}
-
-func deserializeValues(data []byte, columns []types.Column) []interface{} {
-	values := make([]interface{}, len(columns))
-	offset := 0
-
-	for i, col := range columns {
-		switch col.DataType {
-		case types.SQL_TYPE_INT:
-			values[i] = int32(binary.LittleEndian.Uint32(data[offset:]))
-			offset += 4
-		case types.SQL_TYPE_VARCHAR:
-			length := int(binary.LittleEndian.Uint16(data[offset:]))
-			offset += 2
-			values[i] = string(data[offset : offset+length])
-			offset += length
-		case types.SQL_TYPE_BOOL:
-			values[i] = data[offset] != 0
-			offset += 1
-		case types.SQL_TYPE_FLOAT:
-			values[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[offset:]))
-			offset += 4
-		default:
-			values[i] = "UNKNOWN"
-		}
-	}
-
-	return values
-}
-
 func executeInsertCommand(buffer []byte) {
 	query := string(buffer)
 	// parts := strings.SplitN(query, "values", 2) // we have to make it case insensitive
 	parts := strings.SplitN(strings.ToLower(query), "values", 2)
-	fmt.Println("query:", query)
-	fmt.Println("parts:", parts)
+	// fmt.Println("query:", query)
+	// fmt.Println("parts:", parts)
+	debugPrint("query:", query)
+	debugPrint("parts:", parts)
 	if len(parts) != 2 {
 		fmt.Println(ansi.BoldText + ansi.Red + "Invalid insert command. Use: INSERT INTO table_name (column1, column2, ...) VALUES (value1, value2, ...)" + ansi.Reset)
 		return
@@ -597,18 +563,22 @@ func executeInsertCommand(buffer []byte) {
 	}
 
 	// Read the database
-	fmt.Println("config.GetDBFilePath():", config.GetDBFilePath())
+	// fmt.Println("config.GetDBFilePath():", config.GetDBFilePath())
+	debugPrint("config.GetDBFilePath():", config.GetDBFilePath())
 	db := types.NewDatabase()
 	if err := db.ReadFromFile(config.GetDBFilePath()); err != nil {
 		fmt.Println(ansi.BoldText+ansi.Red+"Error reading database file during insert:"+ansi.Reset, err)
 		return
 	}
-	fmt.Println("db:", db)
+	// fmt.Println("db:", db)
+	debugPrint("db:", db)
 	// Find the table
 	var table *types.Table
 	for i := range db.Tables {
-		fmt.Println("db.Tables[i].Name[:]:", string(db.Tables[i].Name[:]))
-		fmt.Println("tableName:", tableName)
+		// fmt.Println("db.Tables[i].Name[:]:", string(db.Tables[i].Name[:]))
+		// fmt.Println("tableName:", tableName)
+		debugPrint("db.Tables[i].Name[:]:", string(db.Tables[i].Name[:]))
+		debugPrint("tableName:", tableName)
 		if strings.EqualFold(strings.TrimRight(string(db.Tables[i].Name[:]), "\x00"), tableName) {
 			table = &db.Tables[i]
 			break
@@ -622,9 +592,11 @@ func executeInsertCommand(buffer []byte) {
 
 	// Validate column names
 	tableColumns := table.GetColumnNames()
-	fmt.Println("tableColumns:", tableColumns)
+	// fmt.Println("tableColumns:", tableColumns)
+	debugPrint("tableColumns:", tableColumns)
 	for _, col := range columnNames {
-		fmt.Println("col:", col)
+		// fmt.Println("col:", col)
+		debugPrint("col:", col)
 		if !containsCaseInsensitive(tableColumns, strings.TrimSpace(col)) {
 			fmt.Printf(ansi.BoldText+ansi.Red+"Column %s not found in table %s\n"+ansi.Reset, col, tableName)
 			return
@@ -703,4 +675,18 @@ func convertValue(value string, dataType types.DataType) (interface{}, error) {
 	default:
 		return nil, fmt.Errorf("unsupported data type")
 	}
+}
+
+func debugPrint(a ...any) {
+	if DebugPrint {
+		fmt.Println(a...)
+	}
+}
+
+func notImplemented(prefix string, commandName string) {
+	commandName = prefix + " " + commandName
+	fmt.Println(ansi.BoldText + ansi.Yellow + "Executing the " + commandName + " functionality ..." + ansi.Reset)
+	fmt.Println(ansi.BoldText + ansi.Red + "Not Implemented Yet!" + ansi.Reset)
+	fmt.Println(ansi.BoldText + ansi.Red + "Come back another day or contribute to the project at " + ansi.RegText + ansi.Cyan + "https://github.com/chaitanyasharma/DBs" + ansi.Reset + ansi.BoldText + ansi.Red + "!" + ansi.Reset)
+	fmt.Println(ansi.BoldText + ansi.Red + "Thank you!" + ansi.Reset)
 }
